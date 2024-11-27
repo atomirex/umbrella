@@ -1,0 +1,45 @@
+version: '3.7'
+
+name: umbrella-sfu
+
+services:
+  umbrella-sfu:
+    image: ${VLAN_BASE_IP}:5000/umbrella-sfu:latest
+    container_name: umbrella-sfu
+    restart: unless-stopped
+    network_mode: host
+
+    extra_hosts:
+      - "host.docker.internal:${VLAN_LOCAL_IP}"
+    environment:
+      - UMBRELLA_CLOUD=1
+      - UMBRELLA_HTTP_PREFIX=/umbrella
+      - UMBRELLA_PUBLIC_IP=211.72.93.112
+      - UMBRELLA_PUBLIC_HOST=www.atomirex.com
+      - UMBRELLA_MIN_PORT=50000
+      - UMBRELLA_MAX_PORT=54000
+    labels:
+      - "traefik.enable=true"
+
+      - "traefik.http.routers.umbrella-sfu.entrypoints=http"
+      - "traefik.http.routers.umbrella-sfu.rule=(Host(`atomirex.com`) || Host(`www.atomirex.com`)) && PathPrefix(`/umbrella`)"
+      - "traefik.http.middlewares.umbrella-sfu-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.umbrella-sfu-https-redirect.redirectscheme.permanent=true"     
+      - "traefik.http.routers.umbrella-sfu.middlewares=umbrella-sfu-https-redirect"
+      
+      - "traefik.http.routers.umbrella-sfu-secure.entrypoints=https"
+      - "traefik.http.routers.umbrella-sfu-secure.rule=(Host(`atomirex.com`) || Host(`www.atomirex.com`)) && PathPrefix(`/umbrella`)"
+      - "traefik.http.routers.umbrella-sfu-secure.tls=true"
+      - "traefik.http.routers.umbrella-sfu-secure.tls.certresolver=myresolver"
+      
+      - "traefik.http.services.umbrella-sfu.loadbalancer.server.port=8081"
+      - "traefik.http.services.umbrella-sfu.loadbalancer.server.url=http://host.docker.internal:8081"
+
+      - "traefik.http.middlewares.umbrella-sfu-nowww.redirectregex.regex=^https://atomirex.com/(.*)$$"
+      - "traefik.http.middlewares.umbrella-sfu-nowww.redirectregex.replacement=https://www.atomirex.com/$${2}"
+      - "traefik.http.middlewares.umbrella-sfu-nowww.redirectregex.permanent=true"
+
+      - "traefik.http.routers.umbrella-sfu-secure.middlewares=umbrella-sfu-nowww"
+    ports:
+      - "${VLAN_LOCAL_IP}:8081:8081"
+      - "50000-54000"

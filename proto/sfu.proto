@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package sfu;
+
+option go_package = "./sfu";
+
+enum TrackKind {
+    Unknown = 0;
+    Audio = 1;
+    Video = 2;
+}
+
+message TrackDescriptor {
+    string id = 1;
+    TrackKind kind = 2;
+    string streamId = 3;
+    string umbrellaId = 4;
+}
+
+message CandidateMessage {
+    string candidate = 1;
+    bool incoming = 2; // Indicates the direction of the pc, relative to the sender of the message (i.e. true if the sender PC is incoming)
+}
+
+message OfferMessage {
+    // Complete JSON of offer object, not just the sdp field
+    string offer = 1;
+}
+
+message AnswerMessage {
+    // Complete JSON of answer object, not just the sdp field
+    string answer = 1;
+}
+
+// client->server this is a request saying what is available
+message SetUpstreamTracks {
+    repeated TrackDescriptor tracks = 1;
+}
+
+// server->client it is information about what it is ready for accepting
+message AcceptUpstreamTracks {
+    repeated TrackDescriptor tracks = 1;
+}
+
+// client->server - when the mapping for ID to mid is known notify the server
+message MidToUmbrellaIDMapping {
+    string umbrellaId = 1;
+    string mid = 2;
+}
+
+message MidToUmbrellaIDMappings {
+    repeated MidToUmbrellaIDMapping mapping = 1;
+}
+
+// Possibly the dumbest conceivable almost symmetrical signalling protocol
+message RemoteNodeMessage {
+    CandidateMessage candidate = 1;
+    OfferMessage offer = 2;
+    AnswerMessage answer = 3;
+    SetUpstreamTracks upstreamTracks = 4;
+    AcceptUpstreamTracks acceptTracks = 5;
+    MidToUmbrellaIDMappings midMappings = 6;
+}
+
+// Returned from the /trunks endpoint with content-type application/x-protobuf
+// Temporary hack
+message CurrentTrunks {
+    repeated string trunks = 1;
+}
+
+// Returned by the /status endpoint with content-type application/x-protobuf
+message SFUStatus {
+    repeated TrackDescriptor relayingTracks = 1;
+    repeated SFUStatusClient clients = 2;
+    repeated string trunks = 3;
+}
+
+
+// TODO could use the pc getstats interface for more info later
+message SFUStatusPeerConnection {
+    string connectionState = 1;
+    string signalingState = 2;
+    string iceConnectionState = 3;
+    string iceGatheringState = 4;
+
+    int32 transceiverCount = 5;
+    int32 senderCount = 6;
+    int32 receiverCount = 7;
+}
+
+message SFUStatusSender {
+    bool hasTrack = 1;
+    string trackIdIfSet = 2;
+    string umbrellaId = 3;
+}
+
+message SFUStatusStagedIncomingTrack {
+    string streamId = 1;
+    string trackId = 2;
+    string mid = 3;
+}
+
+message SFUStatusClient {
+    string label = 1;
+    string trunkUrl = 2;
+    SFUStatusPeerConnection incomingPC = 3;
+    SFUStatusPeerConnection outgoingPC = 4;
+    repeated TrackDescriptor incomingTracks = 5;
+    repeated TrackDescriptor outgoingTracks = 6;
+    repeated SFUStatusSender senders = 7;
+    repeated MidToUmbrellaIDMapping midMapping = 8;
+    repeated SFUStatusStagedIncomingTrack stagedIncomingTracks = 9;
+}

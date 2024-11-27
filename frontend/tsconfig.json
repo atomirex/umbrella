@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+      "jsx": "react-jsx", // Use "react" if you're using React 16 or earlier
+      "target": "es2016",            // Specify ECMAScript target
+      "module": "commonjs",            // Specify module code generation
+      "outDir": "./dist",            // Redirect output structure to the 'dist' directory
+      "strict": true,                // Enable all strict type-checking options
+      "esModuleInterop": true,       // Enables emit interoperability between CommonJS and ES Modules
+      "skipLibCheck": true           // Skip type checking of declaration files
+    },
+    "include": ["src/**/*.ts", "src/index.tsx", "src/**/*.js"],      // Include all .ts files in the 'src' directory
+    "exclude": ["node_modules"]      // Exclude the 'node_modules' directory
+  }
+  

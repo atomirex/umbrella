@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ .Title }}</title>
+  
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+    <link rel="icon" type="image/png" href="favicon.png" sizes="32x32">
+    <link rel="apple-touch-icon" href="512icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <link rel="stylesheet" href="{{ .HttpPrefix }}/static/styles.css" >
+  </head>
+
+  <body>
+    
+    <div id="main-container">
+    </div>
+
+  </body>
+
+  <script>
+    window.__injected__={{ .Injected }};
+  </script>
+
+  <script src="{{ .HttpPrefix }}/static/bundle.js"></script>
+</html>
