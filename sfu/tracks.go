@@ -10,6 +10,7 @@ type incomingTrack struct {
 	descriptor *TrackDescriptor
 	remote     *webrtc.TrackRemote
 	relay      *webrtc.TrackLocalStaticRTP
+	receiver   *webrtc.RTPReceiver
 }
 
 func (it *incomingTrack) String() string {
