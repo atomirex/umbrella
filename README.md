@@ -1,5 +1,7 @@
 # Umbrella
 
+Demo video: https://x.com/atomirex/status/1863956802984984728
+
 This is a hacked up proof of concept WebRTC SFU that can run on many things, such as a local OpenWrt AP or in the cloud with Docker Compose/Traefik, including having a group session that spans both at once by backhauling from the AP to the cloud.
 
 It's not production ready, mainly having almost no security! It also lacks quite a lot of potential optimizations. If you need a production video conf system today try https://livekit.io or https://www.daily.co (unaffiliated with either). It's also not very selective, just forwarding everything to everyone.
