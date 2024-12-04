@@ -87,6 +87,10 @@ func (c *client) getStatus() *SFUStatusClient {
 	return <-msg.result.status
 }
 
+func (c *client) Label() string {
+	return c.label
+}
+
 func (c *client) run(ws *websocket.Conn, s *Sfu) {
 	c.incomingTracks = make(map[string]*incomingTrackWithClientState)
 	c.outgoingTracks = make(map[string]*outgoingTrackWithClientState)
@@ -847,4 +851,16 @@ func (c *client) continueWebsocket(s *Sfu) {
 
 		c.handler.Send(clientHandleWSMessage, &clientCommandMessage{message: &message})
 	}
+}
+
+func (c *client) AddOutgoingTracksForIncomingTrack(intrack *incomingTrack) {
+	c.handler.Send(clientAddOutgoingTrackForIncomingTrack, &clientCommandMessage{incomingTrack: intrack})
+}
+
+func (c *client) RemoveOutgoingTracksForIncomingTrack(intrack *incomingTrack) {
+	c.handler.Send(clientRemoveOutgoingTracksForIncomingTrack, &clientCommandMessage{incomingTrack: intrack})
+}
+
+func (c *client) RequestEvalState() {
+	c.handler.Send(clientEvalState, nil)
 }

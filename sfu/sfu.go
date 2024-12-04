@@ -49,7 +49,7 @@ type sfuCommandResult struct {
 }
 
 type Sfu struct {
-	clients     []*client
+	clients     []RemoteClient
 	sfuCommands chan sfuCommandMessage
 
 	peerConnectionFactory PeerConnectionFactory
@@ -59,7 +59,7 @@ type Sfu struct {
 
 	handler *razor.MessageHandler[sfuCommand, sfuCommandMessage]
 
-	trunks map[string]*client
+	trunks map[string]RemoteClient
 
 	logger *razor.Logger
 
@@ -142,7 +142,7 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			logger:    logger,
 		},
 		localTracks: make(map[string]*incomingTrack),
-		trunks:      make(map[string]*client),
+		trunks:      make(map[string]RemoteClient),
 		logger:      logger,
 		loggerPion:  loggerPion,
 	}
@@ -179,7 +179,7 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			s.localTracks[intrack.UmbrellaID()] = intrack
 
 			for _, c := range s.clients {
-				c.handler.Send(clientAddOutgoingTrackForIncomingTrack, &clientCommandMessage{incomingTrack: intrack})
+				c.AddOutgoingTracksForIncomingTrack(intrack)
 			}
 
 			shouldSignalClients = true
@@ -188,7 +188,7 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			delete(s.localTracks, payload.intrack.UmbrellaID())
 
 			for _, c := range s.clients {
-				c.handler.Send(clientRemoveOutgoingTracksForIncomingTrack, &clientCommandMessage{incomingTrack: payload.intrack})
+				c.RemoveOutgoingTracksForIncomingTrack(payload.intrack)
 			}
 
 			shouldSignalClients = true
@@ -212,9 +212,9 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			logger.Info("sfu", "SFU getting status clients")
 			clients := make([]*SFUStatusClient, 0)
 			for _, c := range s.clients {
-				logger.Info("sfu", "SFU getting status for client "+c.label)
+				logger.Info("sfu", "SFU getting status for client "+c.Label())
 				clients = append(clients, c.getStatus())
-				logger.Info("sfu", "SFU received status for client "+c.label)
+				logger.Info("sfu", "SFU received status for client "+c.Label())
 			}
 
 			logger.Info("sfu", "SFU getting status returning")
@@ -273,8 +273,8 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			s.handler.Cancel(sfuSignalClients)
 
 			for _, c := range s.clients {
-				logger.Verbose("sfu", "SFU signaling client "+c.label)
-				c.handler.Send(clientEvalState, nil)
+				logger.Verbose("sfu", "SFU signaling client "+c.Label())
+				c.RequestEvalState()
 			}
 
 			logger.Verbose("sfu", "SFU finished signaling clients")
