@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pion/rtcp"
+	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
 	"google.golang.org/protobuf/proto"
 )
@@ -558,12 +559,45 @@ func (c *client) evalIncomingState(s *Sfu) {
 
 					intrack.track.relay = relay
 
-					go fanoutIncoming(c, intrack.track, s)
+					go c.fanoutIncoming(intrack.track, s)
 
 					s.handler.Send(sfuAddOutgoingTracksForIncomingTrack, &sfuCommandMessage{intrack: intrack.track})
 					c.logger.Info(c.label, "New incoming track sent to SFU: "+umbrellaId)
 				}
 			}
+		}
+	}
+}
+
+func (c *client) fanoutIncoming(intrack *incomingTrack, s *Sfu) {
+	defer s.removeOutgoingTracksForIncomingTrack(intrack)
+
+	bufSize := 32768
+
+	if intrack.remote.Kind() == webrtc.RTPCodecTypeVideo {
+		bufSize = bufSize * 8
+	}
+
+	buf := make([]byte, bufSize)
+
+	rtpPkt := &rtp.Packet{}
+	for {
+		i, _, err := intrack.remote.Read(buf)
+		if c.logger.NilErrCheck(c.label, "Fan out error reading rtp on track "+intrack.String(), err) {
+			return
+		}
+
+		if err = rtpPkt.Unmarshal(buf[:i]); err != nil {
+			c.logger.Error(c.label, "Error unmarshaling rtp on track "+intrack.String()+" "+err.Error())
+			return
+		}
+
+		rtpPkt.Extension = false
+		rtpPkt.Extensions = nil
+
+		if err := intrack.relay.WriteRTP(rtpPkt); err != nil {
+			c.logger.Error(c.label, "Error writing rtp from "+intrack.String()+" to relay "+err.Error())
+			return
 		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"atomirex.com/umbrella/razor"
 	"github.com/atomirex/mdns"
 	"github.com/gorilla/websocket"
+	"github.com/pion/interceptor"
 	"github.com/pion/logging"
 	"github.com/pion/webrtc/v4"
 )
@@ -115,6 +116,14 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 	m := &webrtc.MediaEngine{}
 	if err := m.RegisterDefaultCodecs(); err != nil {
 		panic("Error setting default codecs")
+	}
+
+	// Now we know what this is and why . . . . facepalm
+	// This is the "default" nack, sr, rr etc. handling for rtcp
+	// We can come back to it when it's a problem
+	interceptorRegistry := &interceptor.Registry{}
+	if err := webrtc.RegisterDefaultInterceptors(m, interceptorRegistry); err != nil {
+		panic("Panic setting interceptors")
 	}
 
 	webrtcApi := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine), webrtc.WithMediaEngine(m))
