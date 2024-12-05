@@ -53,6 +53,7 @@ type Sfu struct {
 	sfuCommands chan sfuCommandMessage
 
 	peerConnectionFactory PeerConnectionFactory
+	remoteClientFactory   RemoteClientFactory
 
 	// UmbrellaID -> track
 	localTracks map[string]*incomingTrack // Set of all incoming tracks which are being relayed
@@ -129,7 +130,8 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 	webrtcApi := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine), webrtc.WithMediaEngine(m))
 
 	s := &Sfu{
-		sfuCommands: make(chan sfuCommandMessage, 256),
+		sfuCommands:         make(chan sfuCommandMessage, 256),
+		remoteClientFactory: &DefaultRemoteClientFactory{},
 		peerConnectionFactory: &PionPeerConnectionFactory{
 			pcConfig: &webrtc.Configuration{
 				ICEServers: []webrtc.ICEServer{
@@ -252,7 +254,11 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			for _, t := range payload.setCurrentTrunks.Trunks {
 				_, exists := s.trunks[t]
 				if !exists {
-					trunk := newTrunkingClient(logger, t, s)
+					trunk := s.remoteClientFactory.NewClient(&RemoteClientParameters{
+						logger:   logger,
+						trunkurl: t,
+						s:        s,
+					})
 					s.trunks[t] = trunk
 				}
 			}
@@ -305,8 +311,7 @@ func (s *Sfu) WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cli := newClient(s.logger, ws, s)
-	cli.continueWebsocket(s)
+	s.remoteClientFactory.NewClient(&RemoteClientParameters{logger: s.logger, ws: ws, s: s})
 }
 
 func (s *Sfu) SetMdnsConn(mdnsConn *mdns.Conn) {

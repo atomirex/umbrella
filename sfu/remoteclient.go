@@ -355,30 +355,6 @@ func (c *client) run(ws *websocket.Conn, s *Sfu) {
 	})
 }
 
-func newTrunkingClient(logger *razor.Logger, trunkurl string, s *Sfu) *client {
-	c := &client{
-		label:    fmt.Sprintf("Trunking client to %s", trunkurl),
-		logger:   logger,
-		trunkurl: trunkurl,
-	}
-
-	c.run(nil, s)
-
-	return c
-}
-
-func newClient(logger *razor.Logger, ws *websocket.Conn, s *Sfu) *client {
-	c := &client{
-		label:     fmt.Sprintf("Incoming client from %s", ws.UnderlyingConn().RemoteAddr()),
-		logger:    logger,
-		websocket: ws,
-	}
-
-	c.run(ws, s)
-
-	return c
-}
-
 func (c *client) stop() {
 	c.handler.CancelAll()
 	c.handler.Send(clientStop, nil)
