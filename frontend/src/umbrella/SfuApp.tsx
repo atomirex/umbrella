@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useRef, useState } from 'react';
-import { SetUpstreamTracks, RemoteNodeMessage, TrackDescriptor, TrackKind, CurrentTrunks, MidToUmbrellaIDMapping, SFUStatus, SFUStatusClient, SFUStatusPeerConnection } from '../generated/sfu'
+import { SetUpstreamTracks, RemoteNodeMessage, TrackDescriptor, TrackKind, CurrentServers, MidToUmbrellaIDMapping, SFUStatus, SFUStatusClient, SFUStatusPeerConnection } from '../generated/sfu'
 
 function trackKindFromString(k: string) : TrackKind  {
     switch(k) {
@@ -512,54 +512,67 @@ export const SfuApp = () => {
     )
 };
 
-export const TrunkApp = () => {
-    const [trunks, setTrunks] = useState<string[]>([]);
-    const trunkInputRef = useRef<HTMLInputElement | null>(null);
+export const ServersApp = () => {
+    const [servers, setServers] = useState<string[]>([]);
+    const addServerInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         fetch(window.location.pathname, {method: 'GET', headers:{'Content-Type': "application/x-protobuf"}})
         .then((response) => response.arrayBuffer())
         .then((buffer) => {
-            setTrunks(CurrentTrunks.fromBinary(new Uint8Array(buffer)).trunks);
-            trunkInputRef.current?.focus();
+            setServers(CurrentServers.fromBinary(new Uint8Array(buffer)).servers);
+            addServerInputRef.current?.focus();
         }).catch(console.log);
 
         return () => {};
     }, []);
 
-    const setTrunkClick = () => {
-        const updateVal = trunkInputRef.current!.value!;
-        const trunksUpdate = updateVal === "" ? [] : [updateVal];
+    const addServerClick = () => {
+        const updateVal = addServerInputRef.current!.value!;
+        const serversUpdate = updateVal === "" ? [] : [updateVal];
 
         fetch(window.location.pathname, 
             {
                 method: 'POST', 
                 headers:{'Content-Type': "application/x-protobuf"},
-                body: CurrentTrunks.toBinary({trunks:trunksUpdate})
+                body: CurrentServers.toBinary({servers:serversUpdate})
             }
         ).then((response) => response.arrayBuffer())
         .then((buffer) => {
-            setTrunks(CurrentTrunks.fromBinary(new Uint8Array(buffer)).trunks);
-            trunkInputRef.current?.focus();
+            setServers(CurrentServers.fromBinary(new Uint8Array(buffer)).servers);
+            addServerInputRef.current?.focus();
         }).catch(console.log);
 
-        trunkInputRef.current!.value = "";
+        addServerInputRef.current!.value = "";
+    };
+
+    const removeServerClick = (server: string) => {
+        fetch(window.location.pathname, 
+            {
+                method: 'POST', 
+                headers:{'Content-Type': "application/x-protobuf"},
+                body: CurrentServers.toBinary({servers: servers.filter((s) => s !== server)})
+            }
+        ).then((response) => response.arrayBuffer())
+        .then((buffer) => {
+            setServers(CurrentServers.fromBinary(new Uint8Array(buffer)).servers);
+        }).catch(console.log);
     };
 
     return (
         <>
             <div className='centering-container'>
-                <h4>Trunking</h4>
+                <h4>Servers</h4>
                 <div style={{ flexBasis: '100%' }}></div>
                 <ul>
-                { trunks.length === 0 ? ( <li>No trunks</li>) : (<>
-                    { trunks.map((trunk, index) => (
-                        <li>{ trunk }</li>
+                { servers.length === 0 ? ( <li>No servers</li>) : (<>
+                    { servers.map((server, index) => (
+                        <li>{ server } <button onClick={() => { removeServerClick(server) }}>Remove</button></li>
                     )) }
                 </>) } 
                 </ul>
                 <div style={{ flexBasis: '100%' }}></div>
-                <input ref={trunkInputRef} type='text' /><button onClick={setTrunkClick}>Set trunk</button>
+                <input ref={addServerInputRef} type='text' /><button onClick={addServerClick}>Add Server</button>
             </div>
         </>
     )
@@ -639,9 +652,9 @@ export const StatusApp = () => {
                         {status.clients.map(c => (
                             <ClientStatusListElement client={c} />
                         ))}
-                        <h5>Trunks</h5>
+                        <h5>servers</h5>
                         <ul>
-                        {status.trunks.map(t => (
+                        {status.servers.map(t => (
                             <li>{ t }</li>
                         ))}
                         </ul>

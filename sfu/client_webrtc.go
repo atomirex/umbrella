@@ -21,7 +21,7 @@ import (
 type clientCommand int
 
 const (
-	clientSendProto = iota
+	clientSendProto clientCommand = iota
 	clientHandleWSMessage
 	clientStop
 	clientAddOutgoingTrackForIncomingTrack
@@ -51,8 +51,7 @@ type clientCommandResult struct {
 }
 
 type client struct {
-	label  string // Descriptive label to help tracing
-	logger *razor.Logger
+	BaseClient
 
 	trunkurl  string // Empty means this is a normal web client - should replace with proper roles or similar
 	incoming  *PeerConnection
@@ -85,10 +84,6 @@ func (c *client) getStatus() *SFUStatusClient {
 	c.handler.Send(clientGetStatus, &msg)
 
 	return <-msg.result.status
-}
-
-func (c *client) Label() string {
-	return c.label
 }
 
 func (c *client) run(ws *websocket.Conn, s *Sfu) {

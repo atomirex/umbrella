@@ -23,29 +23,29 @@ var (
 type sfuCommand int
 
 const (
-	sfuAddOutgoingTracksForIncomingTrack = iota
+	sfuAddOutgoingTracksForIncomingTrack sfuCommand = iota
 	sfuRemoveAllOutgoingTracksForIncomingTrack
 	sfuSignalClients
 	sfuAddClient
 	sfuRemoveClient
 
-	sfuGetCurrentTrunks
-	sfuSetCurrentTrunks
+	sfuGetCurrentServers
+	sfuSetCurrentServers
 
 	sfuGetStatus
 )
 
 type sfuCommandMessage struct {
-	intrack          *incomingTrack
-	client           *client
-	setCurrentTrunks *CurrentTrunks
+	intrack           *incomingTrack
+	client            *client
+	SetCurrentServers *CurrentServers
 
 	result *sfuCommandResult
 }
 
 type sfuCommandResult struct {
-	trunks chan *CurrentTrunks
-	status chan *SFUStatus
+	servers chan *CurrentServers
+	status  chan *SFUStatus
 }
 
 type Sfu struct {
@@ -60,7 +60,8 @@ type Sfu struct {
 
 	handler *razor.MessageHandler[sfuCommand, sfuCommandMessage]
 
-	trunks map[string]RemoteClient
+	intendedServers map[string]bool // This works because strings completely define the spec of the server right now
+	servers         map[string]RemoteClient
 
 	logger *razor.Logger
 
@@ -79,27 +80,27 @@ func (s *Sfu) GetStatus() *SFUStatus {
 	return <-msg.result.status
 }
 
-func (s *Sfu) GetCurrentTrunks() *CurrentTrunks {
+func (s *Sfu) GetCurrentServers() *CurrentServers {
 	msg := sfuCommandMessage{result: &sfuCommandResult{
-		trunks: make(chan *CurrentTrunks, 1),
+		servers: make(chan *CurrentServers, 1),
 	}}
 
-	s.handler.Send(sfuGetCurrentTrunks, &msg)
+	s.handler.Send(sfuGetCurrentServers, &msg)
 
-	return <-msg.result.trunks
+	return <-msg.result.servers
 }
 
-func (s *Sfu) SetCurrentTrunks(update *CurrentTrunks) *CurrentTrunks {
+func (s *Sfu) SetCurrentServers(update *CurrentServers) *CurrentServers {
 	msg := sfuCommandMessage{
-		setCurrentTrunks: update,
+		SetCurrentServers: update,
 		result: &sfuCommandResult{
-			trunks: make(chan *CurrentTrunks, 1),
+			servers: make(chan *CurrentServers, 1),
 		},
 	}
 
-	s.handler.Send(sfuSetCurrentTrunks, &msg)
+	s.handler.Send(sfuSetCurrentServers, &msg)
 
-	return <-msg.result.trunks
+	return <-msg.result.servers
 }
 
 func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *Sfu {
@@ -143,10 +144,11 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			webrtcApi: webrtcApi,
 			logger:    logger,
 		},
-		localTracks: make(map[string]*incomingTrack),
-		trunks:      make(map[string]RemoteClient),
-		logger:      logger,
-		loggerPion:  loggerPion,
+		localTracks:     make(map[string]*incomingTrack),
+		intendedServers: make(map[string]bool),
+		servers:         make(map[string]RemoteClient),
+		logger:          logger,
+		loggerPion:      loggerPion,
 	}
 
 	s.handler = razor.NewMessageHandler(logger, "sfu", 1024, func(what sfuCommand, payload *sfuCommandMessage) bool {
@@ -201,10 +203,10 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			// Should really pass around a thing that gathers the info
 			// but in reality I should move to a pub/sub thing that pushes the data out on changes anyway
 			// this is to debug the mess as is :P
-			logger.Info("sfu", "SFU getting status trunks")
-			trunks := make([]string, 0)
-			for t := range s.trunks {
-				trunks = append(trunks, t)
+			logger.Info("sfu", "SFU getting status servers")
+			servers := make([]string, 0)
+			for t := range s.servers {
+				servers = append(servers, t)
 			}
 			logger.Info("sfu", "SFU getting status relaying")
 			relaying := make([]*TrackDescriptor, 0)
@@ -222,56 +224,40 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 			logger.Info("sfu", "SFU getting status returning")
 			status := &SFUStatus{
 				RelayingTracks: relaying,
-				Trunks:         trunks,
+				Servers:        servers,
 				Clients:        clients,
 			}
 
 			payload.result.status <- status
-		case sfuGetCurrentTrunks:
-			result := &CurrentTrunks{Trunks: make([]string, 0)}
+		case sfuGetCurrentServers:
+			result := &CurrentServers{Servers: make([]string, 0)}
 
-			for t := range s.trunks {
-				result.Trunks = append(result.Trunks, t)
+			for t := range s.servers {
+				result.Servers = append(result.Servers, t)
 			}
 
-			payload.result.trunks <- result
-		case sfuSetCurrentTrunks:
+			payload.result.servers <- result
+		case sfuSetCurrentServers:
+			// "intended" servers model, then regularly evaluate, so setup/teardown repeatedly is ok
 			mentioned := make(map[string]bool)
-			for _, t := range payload.setCurrentTrunks.Trunks {
+			for _, t := range payload.SetCurrentServers.Servers {
 				mentioned[t] = true
 			}
 
-			// remove any unmentioned trunks
-			for t := range s.trunks {
-				mention := mentioned[t]
-				if !mention {
-					s.trunks[t].stop()
-					delete(s.trunks, t)
-				}
-			}
+			// Just overwrite it with what the client sent! (For now)
+			s.intendedServers = mentioned
 
-			// create any newly mentioned trunks
-			for _, t := range payload.setCurrentTrunks.Trunks {
-				_, exists := s.trunks[t]
-				if !exists {
-					trunk := s.remoteClientFactory.NewClient(&RemoteClientParameters{
-						logger:   logger,
-						trunkurl: t,
-						s:        s,
-					})
-					s.trunks[t] = trunk
-				}
-			}
+			s.evaluateServers()
 
 			shouldSignalClients = true
 
-			result := &CurrentTrunks{Trunks: make([]string, 0)}
+			result := &CurrentServers{Servers: make([]string, 0)}
 
-			for t := range s.trunks {
-				result.Trunks = append(result.Trunks, t)
+			for t := range s.servers {
+				result.Servers = append(result.Servers, t)
 			}
 
-			payload.result.trunks <- result
+			payload.result.servers <- result
 		}
 
 		if shouldSignalClients {
@@ -294,6 +280,32 @@ func NewSfu(logger *razor.Logger, minPort uint16, maxPort uint16, ip *string) *S
 	})
 
 	return s
+}
+
+func (s *Sfu) evaluateServers() {
+	// Ensure any running servers that should be stopped are stopping or stopped
+	for t := range s.servers {
+		mention := s.intendedServers[t]
+		if !mention {
+			s.servers[t].stop()
+
+			// TODO only actually delete the server when it's really stopped (need the get servers endpoint to be pub/sub based first or it'll be useless)
+			delete(s.servers, t)
+		}
+	}
+
+	// Create and start any servers that should exist but do not (i.e. if they are still stopping leave them until stopped and removed)
+	for t, _ := range s.intendedServers {
+		_, exists := s.servers[t]
+		if !exists {
+			server := s.remoteClientFactory.NewClient(&RemoteClientParameters{
+				logger:   s.logger,
+				trunkurl: t,
+				s:        s,
+			})
+			s.servers[t] = server
+		}
+	}
 }
 
 func (s *Sfu) addTrack(intrack *incomingTrack) {

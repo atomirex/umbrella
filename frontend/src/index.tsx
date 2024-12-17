@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { SfuApp, StatusApp, TrunkApp } from './umbrella/SfuApp'
+import { SfuApp, StatusApp, ServersApp } from './umbrella/SfuApp'
 
 const EmptyApp = () => {
     return (
@@ -34,8 +34,8 @@ export function runApp() {
   case "/sfu":
     root.render(<SfuApp />);
     break;
-  case "/trunk":
-    root.render(<TrunkApp />);
+  case "/servers":
+    root.render(<ServersApp />);
     break;
   case "/status":
     root.render(<StatusApp />);

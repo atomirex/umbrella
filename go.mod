@@ -4,7 +4,10 @@ go 1.22.5
 
 require (
 	github.com/atomirex/mdns v0.0.13-0.20241125201824-943da8fa1231
+	github.com/bluenviron/gortsplib/v4 v4.11.2
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/pion/interceptor v0.1.37
 	github.com/pion/logging v0.2.2
 	github.com/pion/rtcp v1.2.14
 	github.com/pion/rtp v1.8.9
@@ -14,11 +17,10 @@ require (
 )
 
 require (
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/bluenviron/mediacommon v1.13.1 // indirect
 	github.com/pion/datachannel v1.5.9 // indirect
 	github.com/pion/dtls/v3 v3.0.3 // indirect
 	github.com/pion/ice/v4 v4.0.2 // indirect
-	github.com/pion/interceptor v0.1.37 // indirect
 	github.com/pion/mdns/v2 v2.0.7 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/sctp v1.8.33 // indirect
