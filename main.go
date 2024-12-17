@@ -212,12 +212,12 @@ func main() {
 			}
 		}
 
-		if r.URL.Path == "/trunk" {
+		if r.URL.Path == "/servers" {
 			contentType := r.Header.Get("Content-Type")
 			if contentType == "application/x-protobuf" {
 				switch r.Method {
 				case http.MethodGet:
-					data, err := proto.Marshal(s.GetCurrentTrunks())
+					data, err := proto.Marshal(s.GetCurrentServers())
 					if err != nil {
 						http.Error(w, "Failed to serialize Protobuf", http.StatusInternalServerError)
 						return
@@ -235,14 +235,14 @@ func main() {
 						return
 					}
 
-					var update sfu.CurrentTrunks
+					var update sfu.CurrentServers
 					err = proto.Unmarshal(body, &update)
 					if err != nil {
 						http.Error(w, "Failed to deserialize payload", http.StatusInternalServerError)
 						return
 					}
 
-					data, err := proto.Marshal(s.SetCurrentTrunks(&update))
+					data, err := proto.Marshal(s.SetCurrentServers(&update))
 					if err != nil {
 						http.Error(w, "Failed to serialize Protobuf", http.StatusInternalServerError)
 						return
@@ -279,7 +279,7 @@ func main() {
 	})
 
 	addHandler("/sfu", generic)
-	addHandler("/trunk", generic)
+	addHandler("/servers", generic)
 	addHandler("/status", generic)
 
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

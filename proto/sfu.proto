@@ -62,17 +62,16 @@ message RemoteNodeMessage {
     MidToUmbrellaIDMappings midMappings = 6;
 }
 
-// Returned from the /trunks endpoint with content-type application/x-protobuf
-// Temporary hack
-message CurrentTrunks {
-    repeated string trunks = 1;
+// Returned from the /servers endpoint with content-type application/x-protobuf
+message CurrentServers {
+    repeated string servers = 1; // urls of the servers
 }
 
 // Returned by the /status endpoint with content-type application/x-protobuf
 message SFUStatus {
     repeated TrackDescriptor relayingTracks = 1;
     repeated SFUStatusClient clients = 2;
-    repeated string trunks = 3;
+    repeated string servers = 3;
 }
 
 

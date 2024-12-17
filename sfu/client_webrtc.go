@@ -21,7 +21,7 @@ import (
 type clientCommand int
 
 const (
-	clientSendProto = iota
+	clientSendProto clientCommand = iota
 	clientHandleWSMessage
 	clientStop
 	clientAddOutgoingTrackForIncomingTrack
@@ -51,8 +51,7 @@ type clientCommandResult struct {
 }
 
 type client struct {
-	label  string // Descriptive label to help tracing
-	logger *razor.Logger
+	BaseClient
 
 	trunkurl  string // Empty means this is a normal web client - should replace with proper roles or similar
 	incoming  *PeerConnection
@@ -349,30 +348,6 @@ func (c *client) run(ws *websocket.Conn, s *Sfu) {
 
 		c.logger.Info(c.label, "Post clean up finished")
 	})
-}
-
-func newTrunkingClient(logger *razor.Logger, trunkurl string, s *Sfu) *client {
-	c := &client{
-		label:    fmt.Sprintf("Trunking client to %s", trunkurl),
-		logger:   logger,
-		trunkurl: trunkurl,
-	}
-
-	c.run(nil, s)
-
-	return c
-}
-
-func newClient(logger *razor.Logger, ws *websocket.Conn, s *Sfu) *client {
-	c := &client{
-		label:     fmt.Sprintf("Incoming client from %s", ws.UnderlyingConn().RemoteAddr()),
-		logger:    logger,
-		websocket: ws,
-	}
-
-	c.run(ws, s)
-
-	return c
 }
 
 func (c *client) stop() {
@@ -847,4 +822,16 @@ func (c *client) continueWebsocket(s *Sfu) {
 
 		c.handler.Send(clientHandleWSMessage, &clientCommandMessage{message: &message})
 	}
+}
+
+func (c *client) AddOutgoingTracksForIncomingTrack(intrack *incomingTrack) {
+	c.handler.Send(clientAddOutgoingTrackForIncomingTrack, &clientCommandMessage{incomingTrack: intrack})
+}
+
+func (c *client) RemoveOutgoingTracksForIncomingTrack(intrack *incomingTrack) {
+	c.handler.Send(clientRemoveOutgoingTracksForIncomingTrack, &clientCommandMessage{incomingTrack: intrack})
+}
+
+func (c *client) RequestEvalState() {
+	c.handler.Send(clientEvalState, nil)
 }

@@ -2,7 +2,7 @@
 
 Demo video: https://x.com/atomirex/status/1863956802984984728
 
-This is a hacked up proof of concept WebRTC SFU that can run on many things, such as a local OpenWrt AP or in the cloud with Docker Compose/Traefik, including having a group session that spans both at once by backhauling from the AP to the cloud.
+This is a hacked up proof of concept WebRTC SFU that can run on many things, such as a local OpenWrt AP or in the cloud with Docker Compose/Traefik, including having a group session that spans both at once by backhauling from the AP to the cloud, and ingesting video from security cameras. Today it serves to help explore the problem space more than being any solution to anything.
 
 It's not production ready, mainly having almost no security! It also lacks quite a lot of potential optimizations. If you need a production video conf system today try https://livekit.io or https://www.daily.co (unaffiliated with either). It's also not very selective, just forwarding everything to everyone.
 
@@ -35,7 +35,7 @@ It would be unwise to leave this running on a public network as is for very long
 ### Security prerequisites
 Using WebRTC features in a browser requires the browser to believe it is in a "secure context", which in practice for this means serving https. For the cloud side of things this is fairly easy since you can use something like letsencrypt in the normal way.
 
-Running the SFU on a local subnet, such as that run by an AP, requires creating a key and certificate for the server so devices can keep track of the identity of the server. This is detailed in [KEYS_SETUP.md](KEYS_SETUP.md) . 
+Running the SFU on a local subnet, such as that run by an AP, requires creating a key and certificate for the server so devices can keep track of the identity of the server. This is detailed in [docs/KEYS_SETUP.md](docs/KEYS_SETUP.md) . 
 
 ### Building
 The main SFU is a golang project using the pion library for webrtc functionality. Protobufs are used for communication, and there is a small React/Typescript front end which gets bundled into the binary for ease of deployment. The main entry points for building are the scripts build_PROCESSOR_OS.sh scripts which use the golang cross compilation support to build for the different target architectures. The frontend project is built with esbuild and triggered via the npm commands in build_common.sh, along with the protoc compilation step.
@@ -48,59 +48,15 @@ To build you need:
 Then run one of the shell scripts, and it should produce an executable at ./umbrella .
 
 #### OpenWrt
-While it can run on OpenWrt it will not run on every OpenWrt device, and it won't run well on many it could run on. The target device has been a D-Link AX3200 M32, which has a dual core AArch64 (Arm) CPU and 512MB of RAM. Thanks to the golang cross compilation support this is a basic arm64 linux target and can be built with build_arm64_linux.sh .
-
-Once setup the steps are the same as for running locally on Linux. (See below).
-
-OpenWrt is a generally well behaved small Linux distro, with the exceptions here being aspects related to the security requirements for browser WebRTC support. OpenWrt uses different things for core services than you may expect, such as the package manager being opkg. Assuming you have OpenWrt installed, working, and ssh access to the device . . . 
-
-##### umdns and all lower case hostname
-Out of the box OpenWrt sets the hostname "OpenWrt" and does not include mdns support. Luckily there is a convenient package umdns: https://openwrt.org/docs/guide-developer/mdns
-
-Unfortunately, at least with Apple devices as clients, umdns causes confusion with letter case in hostnames, which will then cause the certificate checks to fail, so the security prerequisites are no longer valid. The workaround is to set the OpenWrt device hostname to all lower case letters. (All the certs will need to reflect this).
-
-It's useful to access the services of one AP from machines connected to other APs. To advertise mdns back out to the WAN to do this /etc/config/umdns has to include something like:
-```
-config umdns
-	option jail 1
-	list network lan
-	list network wan
-```
-
-##### Firewall
-This also required allowing mdns, so /etc/config/firewall has this in it for multicast on the usual IP/port combo:
-```
-config rule
-	option src_port '5353'
-	option src '*'
-	option name 'Allow-mDNS'
-        option target 'ACCEPT'
-        option dest_ip '224.0.0.251'
-        option dest_port '5353'
-        option proto 'udp'
-```
+One of the main targets for this is access points running OpenWrt. More details are in [docs/openwrt.md](docs/openwrt.md) .
 
 #### Docker/traefik
-For running on a public webserver something like docker compose with traefik will take away a lot of headaches. However, it introduces at least one big one. WebRTC uses a lot of ephemeral ports for communication, and these need to be exposed directly by the container. This means you have to run the container with host networking.
-
-There are several environment variables which configure the SFU to run in cloud mode.
-* UMBRELLA_CLOUD=1 - set to cloud mode
-* UMBRELLA_HTTP_PREFIX - the path from the base url to the sfu, including forward slash, so "/umbrella" serves at https://domain:port/umbrella/sfu
-* UMBRELLA_HTTP_SERVE_ADDR - the addr the server serves on, as host and port. To override just the default port 8081 set to :PORT, e.g. ":9000".
-* UMBRELLA_PUBLIC_IP= - set to the public IP of the server. i.e. 245.234.244.122
-* UMBRELLA_PUBLIC_HOST= - set to the public host of the server. i.e. www.atomirex.com
-* UMBRELLA_MIN_PORT= , UMBRELLA_MAX_PORT= - set to the minimum and maximum ephemeral ports to allocate - e.g. UMBRELLA_MIN_PORT=50000, UMBRELLA_MAX_PORT=55000
-
-The frontend is served on 8081, unless you override UMBRELLA_HTTP_SERVE_ADDR, and will need proxying for https for the public internet. You probably want to block whatever port you use from the public internet (here assumed to be on eth0) with something like:
-```
-iptables -A INPUT -p tcp --dport 8081 -i eth0 -j REJECT
-```
-
-This won't persist across reboots by default though, which can be done with the package iptables-persistent.
-
-An example docker-compose file is in the deployment directory.
+For running on a public webserver something like docker compose with traefik will take away a lot of headaches. More details are in [docs/docker.md](docs/docker.md) .
 
 ### Running it
+
+#### Locally
+Running locally should be a question of running the umbrella executable, in a directory with the service.crt and service.key files created earlier (see [docs/KEYS_SETUP.md](docs/KEYS_SETUP.md) ). Port 8081 will need to be available and accessible. Then you can visit: https://HOSTNAME:8081/sfu
 
 #### Cloud
 The easiest way to run it in the cloud is dockerized behind something like a traefik reverse proxy. This way traefik can act as the https endpoint, taking care of the certs, leaving the only real problem being ensuring you use host networking.
@@ -109,15 +65,19 @@ The docker-compose-example.yml in deployment shows how you can run it as a sub p
 
 When it's running you should be able to access it at https://DOMAIN/umbrella/sfu .
 
-#### Locally
-Running locally should be a question of running the umbrella executable, in a directory with the service.crt and service.key files created earlier (see [KEYS_SETUP.md](KEYS_SETUP.md) ). Port 8081 will need to be available and accessible. Then you can visit: https://HOSTNAME:8081/sfu
-
 #### Connecting the two
-The real party trick here is a joint session across SFUs. To do this access the server to push to the other (most likely local to cloud, so local), and visit https://HOSTNAME:8081/trunk . In the text field put the websocket address for the other server and press the button. The websocket address is "wsb" instead of "sfu", and the protocol is "wss" instead of "https". For example: wss://DOMAIN/umbrella/wsb To stop trunking clear the input field and press "Set trunk".
+The real party trick here is a joint session across SFUs. To do this access the server to push to the other (most likely local to cloud, so local), and visit https://HOSTNAME:8081/servers . In the text field put the websocket address for the other server and press the button. The websocket address is "wsb" instead of "sfu", and the protocol is "wss" instead of "https". For example: wss://DOMAIN/umbrella/wsb To stop trunking remove the server connection.
 
 What should happen is all client data for each SFU is relayed to every client of both SFUs, as the result of the data going over the connection between the relays. 
 
- his is a hacked up UI, but it does work.
+This is a hacked up UI, but it does work.
+
+#### Using RTSP for cameras
+Assuming you can access the rtsp feed of a camera (verifiable using VLC) you can ingest from the camera. Different camera brands are more/less reliable for this, and the whole feature is highly experimental, creating a whole load of new problems.
+
+A RTSP camera acts as a server, so to use it you add a server on the same page as connecting between SFUs, i.e. https://HOSTNAME:8081/servers The format is something like rtsp://yourcameraname:yourcamerapassword@CAMERAIP/stream1 but it will vary based on your camera brand.
+
+This only brings in video for now.
 
 ## How do I develop against it?
 This is a real proof of concept mess. Any focused PRs or issues are welcome, as are forks. Assume zero stability at this stage.
